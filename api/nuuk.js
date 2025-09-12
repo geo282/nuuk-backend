@@ -1,8 +1,8 @@
 // /api/nuuk.js
 export const config = { runtime: "edge" }; // Vercel Edge Runtime
 
-// ✅ Mets ici ton domaine Netlify exact (sans slash final)
-const ALLOW_ORIGIN = "https://nuukii2-0.netlify.app";
+// 🔒 CORS — autorise UNIQUEMENT ton domaine Netlify (sans slash final)
+const ALLOW_ORIGIN = "https://nuukiibot.netlify.app";
 
 const CORS = {
   "Access-Control-Allow-Origin": ALLOW_ORIGIN,
@@ -17,7 +17,7 @@ export default async function handler(req) {
     return new Response(null, { status: 204, headers: CORS });
   }
 
-  // GET de test depuis le navigateur
+  // GET de test navigateur
   if (req.method === "GET") {
     return new Response(
       JSON.stringify({ ok: true, msg: "✅ Backend NUUK opérationnel. Utilise POST pour poser une question." }),
@@ -56,7 +56,7 @@ Historique: ${JSON.stringify(history).slice(0, 800)}`;
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, // défini dans Vercel
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, // à définir dans Vercel
       },
       body: JSON.stringify(payload),
     });
