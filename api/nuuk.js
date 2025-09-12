@@ -1,75 +1,78 @@
-// /api/nuuk.js
-export const config = { runtime: "edge" }; // Vercel Edge Runtime
+// api/nuuk.js
+export const config = { runtime: "edge" }; // Vercel Edge
 
-// 🔒 CORS — autorise UNIQUEMENT ton domaine Netlify (sans slash final)
-const ALLOW_ORIGIN = "https://nuukiibot.netlify.app";
+// ⛔ Mets EXACTEMENT l'URL Netlify qui sert ta page (sans slash final)
+const ALLOWED_ORIGIN = "https://nuukiibot.netlify.app";
 
 const CORS = {
-  "Access-Control-Allow-Origin": ALLOW_ORIGIN,
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Methods": "POST,OPTIONS,GET",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Content-Type": "application/json",
 };
+const JSONH = { "Content-Type": "application/json" };
 
 export default async function handler(req) {
-  // Pré-vol CORS
-  if (req.method === "OPTIONS") {
+  if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: CORS });
-  }
 
-  // GET de test navigateur
-  if (req.method === "GET") {
+  if (req.method === "GET")
     return new Response(
-      JSON.stringify({ ok: true, msg: "✅ Backend NUUK opérationnel. Utilise POST pour poser une question." }),
+      JSON.stringify({ ok: true, msg: "✅ Backend NUUK (Groq) opérationnel. Utilise POST pour poser une question." }),
       { status: 200, headers: CORS }
     );
-  }
 
-  if (req.method !== "POST") {
+  if (req.method !== "POST")
     return new Response(
       JSON.stringify({ ok: false, error: "Méthode non autorisée (POST attendu)" }),
-      { status: 405, headers: CORS }
+      { status: 405, headers: JSONH }
     );
-  }
 
   try {
-    const { question = "", history = [] } = await req.json();
+    const { question = "", filters = {}, history = [] } = await req.json();
 
     const system = `Tu es Nüuki, assistant technique NUUK.
-- Domaines: étanchéité air/eau, membranes, menuiseries, toitures, DTU.
-- Réponds en 4–6 points clairs.
-- Propose des produits NUUK adaptés + étapes clés de mise en œuvre + points singuliers.`;
+- Étanchéité air/eau, membranes, menuiseries, toitures, DTU.
+- Donne 4–6 points concrets : produits NUUK + étapes de mise en œuvre + points singuliers.
+- Citer les références NUUK si pertinent (COCON SD20/SD90, COCON SD-ADAPT NT, BARDANE DF25, ARCUS FA1000...).`;
 
-    const user = `Question: ${question}
-Historique: ${JSON.stringify(history).slice(0, 800)}`;
+    const userCtx = `Contexte:
+- Chantier: ${filters?.chantier || "non précisé"}
+- Étanchéité: ${filters?.etancheite || "non précisé"}
+- Bâtiment: ${filters?.batiment || "non précisé"}
+- Dernière question: ${history?.at?.(-1)?.user || "—"}
 
-    const payload = {
-      model: "gpt-4o-mini",
-      temperature: 0.2,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-    };
+Question: ${question}`;
 
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const messages = [
+      { role: "system", content: system },
+      ...(Array.isArray(history) ? history.map(m => ({ role: m.role || "user", content: m.content || "" })) : []),
+      { role: "user", content: userCtx },
+    ];
+
+    // 🔁 Appel Groq (compatible OpenAI)
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, // à définir dans Vercel
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        model: "llama-3.1-70b-versatile",
+        temperature: 0.2,
+        messages,
+      }),
     });
 
     if (!r.ok) {
-      const errTxt = await r.text();
-      return new Response(JSON.stringify({ ok: false, error: errTxt }), { status: 500, headers: CORS });
+      const errTxt = await r.text().catch(() => "");
+      return new Response(JSON.stringify({ ok: false, error: errTxt || `Groq HTTP ${r.status}` }), { status: 500, headers: JSONH });
     }
 
     const data = await r.json();
-    const answer = data.choices?.[0]?.message?.content?.trim() || "Réponse vide.";
+    const answer = data?.choices?.[0]?.message?.content?.trim() || "Réponse vide.";
     return new Response(JSON.stringify({ ok: true, answer }), { status: 200, headers: CORS });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers: CORS });
+    return new Response(JSON.stringify({ ok: false, error: e?.message || "Server error" }), { status: 500, headers: JSONH });
   }
 }
