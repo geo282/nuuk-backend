@@ -1,7 +1,7 @@
 // api/nuuk.js
-export const config = { runtime: "edge" }; // Vercel Edge
+export const config = { runtime: "edge" }; // Vercel Edge Runtime
 
-// ⛔ Mets EXACTEMENT l'URL Netlify qui sert ta page (sans slash final)
+// ⛔ Mets EXACTEMENT l'URL Netlify (sans slash final)
 const ALLOWED_ORIGIN = "https://nuukiibot.netlify.app";
 
 const CORS = {
@@ -13,20 +13,21 @@ const CORS = {
 const JSONH = { "Content-Type": "application/json" };
 
 export default async function handler(req) {
-  if (req.method === "OPTIONS")
-    return new Response(null, { status: 204, headers: CORS });
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
-  if (req.method === "GET")
+  if (req.method === "GET") {
     return new Response(
       JSON.stringify({ ok: true, msg: "✅ Backend NUUK (Groq) opérationnel. Utilise POST pour poser une question." }),
       { status: 200, headers: CORS }
     );
+  }
 
-  if (req.method !== "POST")
+  if (req.method !== "POST") {
     return new Response(
       JSON.stringify({ ok: false, error: "Méthode non autorisée (POST attendu)" }),
       { status: 405, headers: JSONH }
     );
+  }
 
   try {
     const { question = "", filters = {}, history = [] } = await req.json();
@@ -34,7 +35,7 @@ export default async function handler(req) {
     const system = `Tu es Nüuki, assistant technique NUUK.
 - Étanchéité air/eau, membranes, menuiseries, toitures, DTU.
 - Donne 4–6 points concrets : produits NUUK + étapes de mise en œuvre + points singuliers.
-- Citer les références NUUK si pertinent (COCON SD20/SD90, COCON SD-ADAPT NT, BARDANE DF25, ARCUS FA1000...).`;
+- Cite les références NUUK si pertinent (COCON SD20/SD90, COCON SD-ADAPT NT, BARDANE DF25, ARCUS FA1000...).`;
 
     const userCtx = `Contexte:
 - Chantier: ${filters?.chantier || "non précisé"}
@@ -50,7 +51,7 @@ Question: ${question}`;
       { role: "user", content: userCtx },
     ];
 
-    // 🔁 Appel Groq (compatible OpenAI)
+    // 🚀 Appel Groq (compat OpenAI)
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
